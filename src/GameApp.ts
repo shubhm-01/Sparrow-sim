@@ -40,10 +40,12 @@ const isSoftwareGl = (() => {
 
 function computeCappedDpr(w: number, h: number, isMobile = false): number {
   if (isSoftwareGl) return 1;
-  const pixelBudget = isMobile ? 1_650_000 : 3_686_400;
-  const maxDpr = isMobile ? 1.75 : 2.0;
+  // Mobile is deliberately GPU-bound first: avoid the quadratic fill-rate cost of native DPR.
+  const pixelBudget = isMobile ? 1_150_000 : 3_686_400;
+  const maxDpr = isMobile ? 1.32 : 2.0;
+  const minDpr = isMobile ? 0.85 : 1.0;
   const maxDprByBudget = Math.sqrt(pixelBudget / Math.max(1, w * h));
-  return Math.max(1, Math.min(window.devicePixelRatio || 1, maxDpr, maxDprByBudget));
+  return Math.max(minDpr, Math.min(window.devicePixelRatio || 1, maxDpr, maxDprByBudget));
 }
 
 export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> {
@@ -56,15 +58,18 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
   const initH = Math.max(1, window.innerHeight);
   let isMobile = detectInitialMobileDevice();
 
+  let mobileDpr = computeCappedDpr(initW, initH, isMobile);
   const renderer = new THREE.WebGPURenderer({
-    antialias: !isSoftwareGl,
+    // Mobile MSAA is a large bandwidth multiplier on top of a detailed 3D scene.
+    antialias: !isSoftwareGl && !isMobile,
     powerPreference: 'high-performance',
   });
-  renderer.setPixelRatio(computeCappedDpr(initW, initH, isMobile));
+  renderer.setPixelRatio(mobileDpr);
   renderer.setSize(initW, initH);
   renderer.toneMappingExposure = 0.98;
 
-  renderer.shadowMap.enabled = !isSoftwareGl;
+  // Keep the warm storybook lighting on phones without dynamic shadow-map passes.
+  renderer.shadowMap.enabled = !isSoftwareGl && !isMobile;
   renderer.shadowMap.type = THREE.PCFShadowMap;
 
   container.replaceChildren(renderer.domElement);
@@ -105,8 +110,8 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
   const sunLight = new THREE.DirectionalLight(0xfff2da, 1.08);
   sunLight.position.set(68, 118, 52);
   sunLight.target.position.set(0, 0, 0);
-  sunLight.castShadow = !isSoftwareGl;
-  const shadowRes = isMobile ? 1024 : 2048;
+  sunLight.castShadow = !isSoftwareGl && !isMobile;
+  const shadowRes = isMobile ? 512 : 2048;
   sunLight.shadow.mapSize.set(shadowRes, shadowRes);
   sunLight.shadow.camera.near = 0.5;
   sunLight.shadow.camera.far = 2400;
@@ -114,17 +119,26 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
   sunLight.shadow.normalBias = 0.028;
   sunLight.shadow.radius = 1.8;
 
-  const csmNode = new CSMShadowNode(sunLight, {
-    cascades: 3,
-    maxFar: 640,
-    mode: 'custom',
-    lightMargin: 320,
-    customSplitsCallback: (_cascades: number, _near: number, _far: number, breaks: number[]) => {
-      breaks.push(0.032, 0.17, 1.0);
-    },
-  });
-  csmNode.fade = false;
-  if (!isSoftwareGl) {
+  // Three-cascade shadow fitting is reserved for desktop-class GPUs.
+  const csmNode: CSMShadowNode | null =
+    !isSoftwareGl && !isMobile
+      ? new CSMShadowNode(sunLight, {
+          cascades: 3,
+          maxFar: 640,
+          mode: 'custom',
+          lightMargin: 320,
+          customSplitsCallback: (
+            _cascades: number,
+            _near: number,
+            _far: number,
+            breaks: number[]
+          ) => {
+            breaks.push(0.032, 0.17, 1.0);
+          },
+        })
+      : null;
+  if (csmNode) {
+    csmNode.fade = false;
     (
       sunLight.shadow as THREE.DirectionalLightShadow & { shadowNode?: CSMShadowNode }
     ).shadowNode = csmNode;
@@ -169,7 +183,7 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
   const birdCam = new BirdCamera(initW / initH, renderer.domElement, wakeAudio);
   birdCam.setMobileMode(isMobile);
   birdCam.onProjectionChanged = () => {
-    if (csmNode.mainFrustum) {
+    if (csmNode?.mainFrustum) {
       csmNode.updateFrustums();
     }
   };
@@ -200,7 +214,11 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
     birdCam.setMobileMode(mobile);
     const w = Math.max(1, window.innerWidth);
     const h = Math.max(1, window.innerHeight);
-    renderer.setPixelRatio(computeCappedDpr(w, h, mobile));
+    renderer.shadowMap.enabled = !isSoftwareGl && !mobile;
+    sunLight.castShadow = !isSoftwareGl && !mobile;
+    mobileDpr = computeCappedDpr(w, h, mobile);
+    renderer.setPixelRatio(mobileDpr);
+    renderer.setSize(w, h, false);
     syncDrawingBufferResolution();
   };
 
@@ -254,9 +272,9 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
   await loadingScreen.advance(95);
   let renderPipeline: THREE.RenderPipeline | null = null;
   let compilePassesAsync: (() => Promise<void>) | null = null;
-  if (!isSoftwareGl) {
+  if (!isSoftwareGl && !isMobile) {
     try {
-      const built = createStorybookRenderPipeline(renderer, scene, birdCam.camera, { isMobile });
+      const built = createStorybookRenderPipeline(renderer, scene, birdCam.camera, { isMobile: false });
       renderPipeline = built.renderPipeline;
       compilePassesAsync = built.compilePassesAsync;
     } catch {
@@ -268,7 +286,7 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
   // Pre-warm all WebGPU pipelines (all 4 city quadrants, water shimmer, foliage sway, NPCs, pooled FX,
   // prePass MRT, 4x MSAA scenePass, 3 CSM shadow cascades, GTAO & composite) + audio preload before showing START
   await loadingScreen.advance(97);
-  if (!isSoftwareGl) {
+  if (!isSoftwareGl && !isMobile) {
     const savedStates: Array<{ obj: THREE.Object3D; visible: boolean; frustumCulled: boolean }> = [];
     scene.traverse((obj) => {
       savedStates.push({ obj, visible: obj.visible, frustumCulled: obj.frustumCulled });
@@ -337,15 +355,19 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
     const h = Math.max(1, window.innerHeight);
     birdCam.camera.aspect = w / h;
     birdCam.camera.updateProjectionMatrix();
-    if (csmNode.mainFrustum) {
+    if (csmNode?.mainFrustum) {
       csmNode.updateFrustums();
     }
-    renderer.setPixelRatio(computeCappedDpr(w, h, isMobile));
+    mobileDpr = computeCappedDpr(w, h, isMobile);
+    renderer.setPixelRatio(mobileDpr);
     renderer.setSize(w, h);
     syncDrawingBufferResolution();
   });
 
   let lastTime = performance.now();
+  let lastMobileFrameAt = 0;
+  let mobileSampleStart = lastTime;
+  let mobileSampleFrames = 0;
   let elapsed = 0;
   const fwdTmp = new THREE.Vector3();
   const camFwdTmp = new THREE.Vector3();
@@ -368,6 +390,38 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
 
   const stepFrame = () => {
     const now = performance.now();
+
+    // Keep high-refresh phones from burning extra GPU/CPU at 90/120 FPS.
+    if (isMobile) {
+      if (lastMobileFrameAt > 0 && now - lastMobileFrameAt < 1000 / 60 - 1) {
+        return;
+      }
+      lastMobileFrameAt = now;
+      mobileSampleFrames++;
+      const sampleMs = now - mobileSampleStart;
+      if (sampleMs >= 2800) {
+        const fps = (mobileSampleFrames * 1000) / sampleMs;
+        const nextDpr =
+          fps < 49
+            ? Math.max(0.85, mobileDpr - 0.10)
+            : fps > 58
+              ? Math.min(1.32, mobileDpr + 0.04)
+              : mobileDpr;
+        if (Math.abs(nextDpr - mobileDpr) >= 0.02) {
+          mobileDpr = nextDpr;
+          renderer.setPixelRatio(mobileDpr);
+          renderer.setSize(
+            Math.max(1, window.innerWidth),
+            Math.max(1, window.innerHeight),
+            false
+          );
+          syncDrawingBufferResolution();
+        }
+        mobileSampleStart = now;
+        mobileSampleFrames = 0;
+      }
+    }
+
     const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) * 0.001));
     lastTime = now;
     elapsed += dt;
@@ -485,11 +539,21 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
       window.setTimeout(poll, 5);
     };
     const tickSoftware = () => {
-      stepFrame();
+      if (!document.hidden) {
+        stepFrame();
+      }
       afterDraw(tickSoftware);
     };
     afterDraw(tickSoftware);
   } else {
+    document.addEventListener('visibilitychange', () => {
+      lastTime = performance.now();
+      if (document.hidden) {
+        renderer.setAnimationLoop(null);
+      } else {
+        renderer.setAnimationLoop(stepFrame);
+      }
+    });
     renderer.setAnimationLoop(stepFrame);
   }
 }
