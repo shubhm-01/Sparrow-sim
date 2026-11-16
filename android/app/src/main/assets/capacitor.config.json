@@ -1,0 +1,14 @@
+{
+	"appId": "com.sparrowsim.game",
+	"appName": "Sparrow Sim",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https"
+	},
+	"android": {
+		"backgroundColor": "#161922",
+		"allowMixedContent": false,
+		"captureInput": true,
+		"webContentsDebuggingEnabled": true
+	}
+}

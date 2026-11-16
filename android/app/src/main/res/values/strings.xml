@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Sparrow Sim</string>
+    <string name="title_activity_main">Sparrow Sim</string>
+    <string name="package_name">com.sparrowsim.game</string>
+    <string name="custom_url_scheme">com.sparrowsim.game</string>
+</resources>
