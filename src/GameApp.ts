@@ -77,6 +77,12 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
   const journalHud = new SparrowJournalHUD(container);
   const mobileControls = new MobileTouchControls(container);
   isMobile = mobileControls.isMobile();
+  // Re-apply the mobile resolution profile after touch-capability detection,
+  // before initializing the WebGPU/WebGL backend.
+  mobileDpr = computeCappedDpr(initW, initH, isMobile);
+  renderer.setPixelRatio(mobileDpr);
+  renderer.setSize(initW, initH);
+  renderer.shadowMap.enabled = !isSoftwareGl && !isMobile;
   document.body.classList.toggle('is-mobile', isMobile);
   tutorialOverlay.setMobileMode(isMobile);
   journalHud.setMobileMode(isMobile);
