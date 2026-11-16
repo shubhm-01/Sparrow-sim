@@ -167,6 +167,7 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
   const physics = new PhysicsWorld();
   const perches = new PerchSystem();
   const npcs = new NPCManager(scene, perches, physics, audio, fx);
+  npcs.setMobileMode(isMobile);
 
   // Build the 4-block neighborhood & conservatory atelier, reporting loading progress
   const cityBuilder = new CityBlockBuilder(scene, physics, perches, fx, npcs, audio);
@@ -208,6 +209,7 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
 
   mobileControls.onMobileModeChange = (mobile) => {
     isMobile = mobile;
+    npcs.setMobileMode(mobile);
     document.body.classList.toggle('is-mobile', mobile);
     tutorialOverlay.setMobileMode(mobile);
     journalHud.setMobileMode(mobile);
