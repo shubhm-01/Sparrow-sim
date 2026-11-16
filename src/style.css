@@ -635,83 +635,38 @@ canvas {
 }
 
 
-/* Creator signature — a small, polished credit anchored to the loading-screen safe area. */
+/* Tiny, single-line pink cursive signature at the very bottom of the loading screen. */
 .creator-credit {
   position: absolute;
   inset-inline: 0;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + clamp(24px, 5vh, 46px));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 9px);
   z-index: 2;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding-inline: 18px;
+  padding-inline: 12px;
   pointer-events: none;
   text-align: center;
-  animation: creatorReveal 900ms cubic-bezier(0.2, 0.75, 0.25, 1) 180ms both;
 }
 
-.creator-credit__eyebrow {
-  color: rgba(84, 68, 57, 0.66);
-  font-family: 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.24em;
-  line-height: 1.5;
-}
-
-.creator-credit__eyebrow span {
-  color: #c66b54;
+.creator-credit__text {
+  color: #e8759b;
+  font-family: 'Segoe Script', 'Brush Script MT', 'Snell Roundhand', cursive;
   font-size: 11px;
-  text-shadow: 0 1px 5px rgba(198, 107, 84, 0.22);
-}
-
-.creator-credit__name {
-  display: inline-block;
-  padding-inline: 5px;
-  background: linear-gradient(105deg, #a94e42 4%, #d28b39 37%, #66896b 69%, #55789a 100%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  font-family: 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
-  font-size: clamp(21px, 5.4vw, 25px);
   font-style: italic;
-  font-weight: 800;
-  letter-spacing: 0.11em;
-  line-height: 1.16;
-  filter: drop-shadow(0 2px 2px rgba(83, 62, 44, 0.12));
-}
-
-@keyframes creatorReveal {
-  from {
-    opacity: 0;
-    transform: translateY(9px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  font-weight: 500;
+  letter-spacing: 0.015em;
+  line-height: 1.15;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(232, 117, 155, 0.16);
 }
 
 @media (max-height: 600px) {
   .creator-credit {
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 15px);
-    gap: 1px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 6px);
   }
 
-  .creator-credit__eyebrow {
-    font-size: 8px;
-  }
-
-  .creator-credit__name {
-    font-size: 19px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .creator-credit {
-    animation: none;
+  .creator-credit__text {
+    font-size: 10px;
   }
 }
