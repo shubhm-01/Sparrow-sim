@@ -41,8 +41,8 @@ const isSoftwareGl = (() => {
 function computeCappedDpr(w: number, h: number, isMobile = false): number {
   if (isSoftwareGl) return 1;
   // Mobile is deliberately GPU-bound first: avoid the quadratic fill-rate cost of native DPR.
-  const pixelBudget = isMobile ? 1_150_000 : 3_686_400;
-  const maxDpr = isMobile ? 1.32 : 2.0;
+  const pixelBudget = isMobile ? 1_450_000 : 3_686_400;
+  const maxDpr = isMobile ? 1.42 : 2.0;
   const minDpr = isMobile ? 0.85 : 1.0;
   const maxDprByBudget = Math.sqrt(pixelBudget / Math.max(1, w * h));
   return Math.max(minDpr, Math.min(window.devicePixelRatio || 1, maxDpr, maxDprByBudget));
@@ -422,7 +422,7 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
           fps < 49
             ? Math.max(0.85, mobileDpr - 0.10)
             : fps > 58
-              ? Math.min(1.32, mobileDpr + 0.04)
+              ? Math.min(1.42, mobileDpr + 0.04)
               : mobileDpr;
         if (Math.abs(nextDpr - mobileDpr) >= 0.02) {
           mobileDpr = nextDpr;
