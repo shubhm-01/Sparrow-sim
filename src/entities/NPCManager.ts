@@ -827,6 +827,7 @@ export class NPCManager {
   public spawnFlowerGiftAt?: (origin: THREE.Vector3) => void;
   private floristGifted = false;
   private colliderToHuman = new WeakMap<CANNON.Body, GiantHumanInstance>();
+  private mobileMode = false;
 
   constructor(
     scene: THREE.Scene,
@@ -841,6 +842,10 @@ export class NPCManager {
 
   public isBuskerGrooving(): boolean {
     return this.buskerGrooveTimer > 0;
+  }
+
+  public setMobileMode(enabled: boolean): void {
+    this.mobileMode = enabled;
   }
 
   /**
@@ -2358,6 +2363,12 @@ export class NPCManager {
       const dxPlayer = playerPos.x - h.root.position.x;
       const dzPlayer = playerPos.z - h.root.position.z;
       const horizDistSq = dxPlayer * dxPlayer + dzPlayer * dzPlayer;
+      if (this.mobileMode) {
+        // Distant articulated citizens are tiny on a phone but contain many individual draw calls.
+        h.root.visible = horizDistSq <= 115.0 * 115.0;
+      } else if (!h.root.visible) {
+        h.root.visible = true;
+      }
       const horizDist = Math.sqrt(horizDistSq);
       const relBirdY = playerPos.y - h.root.position.y;
 
@@ -3674,12 +3685,18 @@ export class NPCManager {
             : 0;
       _pigeonHeadLook.set(0, peckLook);
 
+      const pigeonDistSq = p.mesh.root.position.distanceToSquared(playerPos);
+      if (this.mobileMode) {
+        p.mesh.root.visible = pigeonDistSq <= 115.0 * 115.0;
+      } else if (!p.mesh.root.visible) {
+        p.mesh.root.visible = true;
+      }
       const pigeonFarIdle =
         !isFlying &&
         !isWalking &&
         !isNibbling &&
         !isBathingSettled &&
-        p.mesh.root.position.distanceToSquared(playerPos) > 95.0 * 95.0;
+        pigeonDistSq > 95.0 * 95.0;
       if (pigeonFarIdle && (this.frameCounter + i) % 3 !== 0) {
         continue;
       }
@@ -4104,10 +4121,16 @@ export class NPCManager {
         isInspectingProp ||
         isBathingBird ||
         Boolean(c.demoHopping);
+      const companionDistSq = c.mesh.root.position.distanceToSquared(playerPos);
+      if (this.mobileMode) {
+        c.mesh.root.visible = companionDistSq <= 115.0 * 115.0;
+      } else if (!c.mesh.root.visible) {
+        c.mesh.root.visible = true;
+      }
       const compFarIdle =
         !isFlying &&
         !compChirpActive &&
-        c.mesh.root.position.distanceToSquared(playerPos) > 95.0 * 95.0;
+        companionDistSq > 95.0 * 95.0;
       if (compFarIdle && (this.frameCounter + i) % 3 !== 0) {
         continue;
       }
