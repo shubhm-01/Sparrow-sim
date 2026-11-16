@@ -366,6 +366,7 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
 
   let lastTime = performance.now();
   let lastMobileFrameAt = 0;
+  let mobileFrameAccumulator = 0;
   let mobileSampleStart = lastTime;
   let mobileSampleFrames = 0;
   let elapsed = 0;
@@ -391,12 +392,20 @@ export async function startGameApp(loadingScreen: LoadingScreen): Promise<void> 
   const stepFrame = () => {
     const now = performance.now();
 
-    // Keep high-refresh phones from burning extra GPU/CPU at 90/120 FPS.
+    // Schedule an average of 60 rendered frames per second even on 90/120/144 Hz displays.
     if (isMobile) {
-      if (lastMobileFrameAt > 0 && now - lastMobileFrameAt < 1000 / 60 - 1) {
+      const frameIntervalMs = 1000 / 60;
+      if (lastMobileFrameAt === 0) {
+        lastMobileFrameAt = now;
+        mobileFrameAccumulator = frameIntervalMs;
+      } else {
+        mobileFrameAccumulator += Math.min(100, Math.max(0, now - lastMobileFrameAt));
+        lastMobileFrameAt = now;
+      }
+      if (mobileFrameAccumulator < frameIntervalMs) {
         return;
       }
-      lastMobileFrameAt = now;
+      mobileFrameAccumulator %= frameIntervalMs;
       mobileSampleFrames++;
       const sampleMs = now - mobileSampleStart;
       if (sampleMs >= 2800) {
